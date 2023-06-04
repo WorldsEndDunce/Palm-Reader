@@ -3,8 +3,6 @@ import os
 import matplotlib.pyplot as plt
 from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 
 from models import init_model
@@ -13,13 +11,34 @@ from models import init_model
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-actions = [
-    # TODO: get actions from labels file for large dataset
+# List of possible gestures
+actions = [ # ids 1-14, respectively
+    "Non-gesture",
+    "Pointing with one finger",
+    "Pointing with two fingers",
+    "Click with one finger",
+    "Click with two fingers",
+    "Throw up",
+    "Throw down",
+    "Throw left",
+    "Throw right",
+    "Open twice",
+    "Double click with one finger",
+    "Double click with two fingers",
+    "Zoom in",
+    "Zoom out"
 ]
 
-data = np.concatenate([
-    # TODO: get actions from labels file for large dataset
-], axis=0)
+# Create data from pre-processed examples (not in this repo b/c too large)
+folder_path = "dataset"
+examples = []
+for filename in os.listdir(folder_path):
+    file_path = os.path.join(folder_path, filename)
+    if filename.endswith(".npy"):
+        cur = np.load(file_path)
+        examples.append(cur)
+
+data = np.concatenate(examples, axis=0)
 
 x_data = data[:, :, :-1]
 labels = data[:, 0, -1]
