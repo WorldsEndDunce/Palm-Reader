@@ -8,6 +8,7 @@ videos = []
 actions = []
 labels = {}
 labels_order = []
+min_len = 99999
 # open labels file and parse for information about videos
 with open('gestures/labels/Annot_TrainList.txt', mode='r') as f:
     lines = f.readlines()
@@ -17,18 +18,20 @@ with open('gestures/labels/Annot_TrainList.txt', mode='r') as f:
     curr_file = "not prev"
     file_index = -1
 
+
     for line in lines:
         data = [item.strip() for item in line.split(',')]
         curr_file, gesture_name, _, beginning, end, vid_len = data
         actions.append(gesture_name)
         end = int(end)
         beginning = int(beginning)
+        vid_len = int(vid_len)
+        if min_len > vid_len:
+            min_len = vid_len
         info_list = [curr_file, gesture_name, beginning, end, vid_len]
         # keep track of all gestures within the current
         if curr_file != prev_file:
             if file_index != -1:
-                #name = "gestures/videos/" + prev_file + ".avi"
-                #print(name)
                 videos.append(prev_file)
                 labels[prev_file] = curr_list # save current list
                 labels_order.append(prev_file)
@@ -38,7 +41,9 @@ with open('gestures/labels/Annot_TrainList.txt', mode='r') as f:
         curr_list.append(info_list)
         prev_file = curr_file
 
-seq_length = 15
+print(min_len)
+
+seq_length = min_len - 1
 
 # MediaPipe hands model initialization
 mp_hands = mp.solutions.hands
@@ -85,14 +90,14 @@ for i in range(len(videos)):
     cv2.imshow('img', img)
 
     frame = 0
-    curr_begin = 0
+    # curr_begin = 0
     curr_end = 0
     # loop through each action of the video
     for params in list_of_lists:
         data = []
         curr_file, gesture_name, beginning, end, vid_len = params
         frame = 0
-        while frame < end:
+        while frame < vid_len:
             ret, img = cap.read()
             if not ret:
                 print("video ")
@@ -105,6 +110,7 @@ for i in range(len(videos)):
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
             if result.multi_hand_landmarks is not None: # hand detection in frame
+                # print("made it here")
                 for res in result.multi_hand_landmarks:
                     joint = np.zeros((21, 4))
                     for j, lm in enumerate(res.landmark):
@@ -135,24 +141,19 @@ for i in range(len(videos)):
                     mp_drawing.draw_landmarks(img, res, mp_hands.HAND_CONNECTIONS)
             #
             cv2.imshow('img', img)
+            #print(frame)
             frame += 1
             if cv2.waitKey(1) == ord('q'):
                 break
 
-        curr_begin = end
-
         # save processed data
         data = np.array(data)
-        print(gesture_name, data.shape)
         np.save(os.path.join('dataset', f'raw_{gesture_name}_{curr_file}_{created_time}'), data)
 
-        # Create sequence data from captured data
         full_seq_data = []
-        # print(len(data) - seq_length)
 
         for seq in range(len(data) - seq_length):
             full_seq_data.append(data[seq:seq + seq_length])
 
         full_seq_data = np.array(full_seq_data)
-        print(gesture_name, full_seq_data.shape)
         np.save(os.path.join('dataset', f'seq_{gesture_name}_{curr_file}_{created_time}'), full_seq_data)

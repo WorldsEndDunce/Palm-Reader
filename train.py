@@ -32,11 +32,20 @@ actions = [ # ids 1-14, respectively
 # Create data from pre-processed examples (not in this repo b/c too large)
 folder_path = "dataset"
 examples = []
+# i =0
 for filename in os.listdir(folder_path):
+
     file_path = os.path.join(folder_path, filename)
     if filename.endswith(".npy"):
+        #print(filename)
         cur = np.load(file_path)
-        examples.append(cur)
+        # if cur.shape is 2D:
+        #     continue
+        if not cur.all():
+            print(cur.shape)
+            examples.append(cur)
+        # i+=1
+
 
 data = np.concatenate(examples, axis=0)
 
@@ -85,6 +94,8 @@ acc_ax.set_ylabel('accuracy')
 acc_ax.legend(loc='lower left')
 
 plt.show()
+
+# TODO: Add other plots? Looking at you, Dishwison
 
 # save model
 model.save('models/models.h5', overwrite=False, save_format = 'h5')
