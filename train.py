@@ -7,6 +7,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 
+from models import init_model
+
 # Enable GPU
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -31,11 +33,7 @@ y_data = y_data.astype(np.float32)
 x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=420)
 
 # initialize model: currently LSTM - fc - fc
-model = Sequential([
-    LSTM(64, activation='relu', input_shape=x_train.shape[1:3]),
-    Dense(32, activation='relu'),
-    Dense(len(actions), activation='softmax')
-])
+model = init_model(x_train, actions, "LSTM")
 
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['acc'])
 model.summary()
