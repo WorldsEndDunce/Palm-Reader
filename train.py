@@ -79,7 +79,7 @@ y_data = y_data.astype(np.float32)
 x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=420)
 
 # initialize model: currently LSTM - fc - fc
-model = init_model(x_train, actions, "LSTM")
+model = init_model(x_train, actions, "Transformer")
 
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['acc'])
 model.summary()
