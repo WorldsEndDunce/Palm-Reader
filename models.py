@@ -2,7 +2,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, LSTM, Bidirectional
 from tensorflow.keras.layers import MultiHeadAttention, LayerNormalization, Dropout
-def init_model(x_train, actions, model_type):
+def init_model(x_train, actions, model_type, nhead):
     model = None
     if model_type =="LSTM":
         model = Sequential([
@@ -13,7 +13,7 @@ def init_model(x_train, actions, model_type):
     elif model_type == "Transformer":
         # Define the model
         inputs = Input(shape=x_train.shape[1:3])
-        transformer = TransformerLayer(units=64, d_model=x_train.shape[-1], num_heads=4, dropout=0.1)(inputs)
+        transformer = TransformerLayer(units=64, d_model=x_train.shape[-1], num_heads=nhead, dropout=0.1)(inputs)
         lstm = Bidirectional(LSTM(64, activation='relu'))(transformer)
         dense1 = Dense(32, activation='relu')(lstm)
         outputs = Dense(len(actions), activation='softmax')(dense1)

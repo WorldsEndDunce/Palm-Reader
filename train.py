@@ -2,7 +2,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from tensorflow.keras.utils import to_categorical
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV, ParameterGrid
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 
 from models import init_model
@@ -54,11 +54,11 @@ for filename in os.listdir(folder_path):
                 for _ in range(cur.shape[0]):
                     action_indices.append(actions_dict[name])
 
-#print(action_indices)
+# print(action_indices)
 data = np.concatenate(examples, axis=0)
 
-print(data.shape)
-print(index)
+# print(data.shape)
+# print(index)
 
 x_data = data[:, :, :-1]
 labels = data[:, 0, -1]
@@ -67,10 +67,10 @@ labels = data[:, 0, -1]
 # print(labels.shape)
 # print(np.max(labels))
 # print(np.unique(labels))
-print(len(action_indices))
+# print(len(action_indices))
 
 y_data = to_categorical(action_indices, num_classes=(len(actions)))
-print(y_data.shape)
+# print(y_data.shape)
 
 x_data = x_data.astype(np.float32)
 y_data = y_data.astype(np.float32)
@@ -78,43 +78,67 @@ y_data = y_data.astype(np.float32)
 # split data into training and testing
 x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=420)
 
-# initialize model: currently LSTM - fc - fc
-model = init_model(x_train, actions, "Transformer")
+# # initialize model
+# model = init_model(x_train, actions, "Transformer")
+#
+# model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['acc'])
+# model.summary()
 
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['acc'])
-model.summary()
+# Define the hyperparameters to search
+param_grid = {
+    'num_heads': [3, 4, 6],
+    'learning_rate': [0.001],
+    # 'reg_strength': [0.001, 0.01, 0.1],
+    # Add other hyperparameters to search
+}
 
-# fit model to data
-history = model.fit(
-    x_train,
-    y_train,
-    validation_data=(x_val, y_val),
-    epochs=50,
-    callbacks=[
-        ModelCheckpoint('models/model.h5', monitor='val_acc', verbose=1, save_best_only=True, mode='auto'),
-        ReduceLROnPlateau(monitor='val_acc', factor=0.5, patience=50, verbose=1, mode='auto')
-    ]
-)
+# Initialize a dictionary to store training history
+history_dict = {}
 
-# plot training loss and accuracy
-fig, loss_ax = plt.subplots(figsize=(16, 10))
-acc_ax = loss_ax.twinx()
+# Iterate over each hyperparameter combination and fit the model
+for params in ParameterGrid(param_grid):
+    print("Training model with hyperparameters:", params)
 
-loss_ax.plot(history.history['loss'], 'y', label='train loss')
-loss_ax.plot(history.history['val_loss'], 'r', label='val loss')
-loss_ax.set_xlabel('epoch')
-loss_ax.set_ylabel('loss')
-loss_ax.legend(loc='upper left')
+    # Create a new instance of the model
+    model = init_model(x_train, actions, "Transformer", params["num_heads"])
 
-acc_ax.plot(history.history['acc'], 'b', label='train acc')
-acc_ax.plot(history.history['val_acc'], 'g', label='val acc')
-acc_ax.set_ylabel('accuracy')
-acc_ax.legend(loc='lower left')
+    # Compile and update learning rate
+    model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['acc'])
 
-plt.show()
+    model.optimizer.learning_rate.assign(params['learning_rate'])
+    model_path = 'models/model_' + 'lr='+str(params["learning_rate"])+'heads='+str(params["num_heads"])+'.h5'
+    # Fit the model to the data
+    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50,
+                        callbacks=[ModelCheckpoint(model_path, monitor='val_acc', verbose=1,
+                                                   save_best_only=True, mode='auto'),
+                                   ReduceLROnPlateau(monitor='val_acc', factor=0.5, patience=50, verbose=1,
+                                                     mode='auto')])
+
+    # Store the training history for this hyperparameter combination
+    history_dict[str(params)] = history.history
+    # save model
+
+# Print the training hi story for each hyperparameter combination
+for params, history in history_dict.items():
+    print("Training history for hyperparameters:", params)
+    print(history)
+    # plot training loss and accuracy
+    fig, loss_ax = plt.subplots(figsize=(16, 10))
+    acc_ax = loss_ax.twinx()
+
+    loss_ax.plot(history['loss'], 'y', label='train loss')
+    loss_ax.plot(history['val_loss'], 'r', label='val loss')
+    loss_ax.set_xlabel('epoch')
+    loss_ax.set_ylabel('loss')
+    loss_ax.legend(loc='upper left')
+
+    acc_ax.plot(history['acc'], 'b', label='train acc')
+    acc_ax.plot(history['val_acc'], 'g', label='val acc')
+    acc_ax.set_ylabel('accuracy')
+    acc_ax.legend(loc='lower left')
+
+    plt.show()
 
 # TODO: Add other plots? Looking at you, Dishwison
 
-# save model
-model.save('models/models.h5', overwrite=False, save_format = 'h5')
 
