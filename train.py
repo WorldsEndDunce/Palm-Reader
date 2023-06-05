@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split, GridSearchCV, ParameterGrid
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 from models import init_model
 
@@ -86,7 +88,7 @@ x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2,
 
 # Define the hyperparameters to search
 param_grid = {
-    'num_heads': [3, 4, 6],
+    'num_heads': [3, 4],
     'learning_rate': [0.001],
     # 'reg_strength': [0.001, 0.01, 0.1],
     # Add other hyperparameters to search
@@ -94,6 +96,8 @@ param_grid = {
 
 # Initialize a dictionary to store training history
 history_dict = {}
+# Initialize a list to store confusion matrices
+confusion_matrices = []
 
 # Iterate over each hyperparameter combination and fit the model
 for params in ParameterGrid(param_grid):
@@ -116,7 +120,19 @@ for params in ParameterGrid(param_grid):
 
     # Store the training history for this hyperparameter combination
     history_dict[str(params)] = history.history
-    # save model
+
+    # Predict labels for the validation set
+    y_pred = model.predict(x_val)
+    y_true = np.argmax(y_val, axis=1)
+    y_pred = np.argmax(y_pred, axis=1)
+
+    # Compute and store the confusion matrix
+    confusion_matrix_val = confusion_matrix(y_true, y_pred)
+    confusion_matrices.append(confusion_matrix_val)
+
+    # Print the confusion matrix
+    print("Confusion Matrix:")
+    print(confusion_matrix_val)
 
 # Print the training hi story for each hyperparameter combination
 for params, history in history_dict.items():
@@ -137,6 +153,15 @@ for params, history in history_dict.items():
     acc_ax.set_ylabel('accuracy')
     acc_ax.legend(loc='lower left')
 
+    plt.show()
+
+# Plot the confusion matrix
+for i, matrix in enumerate(confusion_matrices):
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(matrix, annot=True, fmt="d", xticklabels=actions, yticklabels=actions)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title("Confusion Matrix for Hyperparameters: " + str(list(ParameterGrid(param_grid))[i]))
     plt.show()
 
 # TODO: Add other plots? Looking at you, Dishwison
