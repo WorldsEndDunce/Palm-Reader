@@ -151,8 +151,11 @@ for i in range(len(videos)):
         np.save(os.path.join('dataset', f'raw_{gesture_name}_{curr_file}_{created_time}'), data)
 
         full_seq_data = []
+        print(data.shape)
 
         for seq in range(len(data) - seq_length):
+            curr = data[seq:seq+seq_length]
+            print(data[seq:seq+seq_length].shape)
             full_seq_data.append(data[seq:seq + seq_length])
 
         full_seq_data = np.array(full_seq_data)
