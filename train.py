@@ -42,7 +42,7 @@ folder_path = "dataset"
 examples = []
 action_indices = []
 index = 0
-frame_selection_rate = 5 # Select 1 frame every frame_selection_rate frames
+frame_selection_rate = 3 # Select 1 frame every frame_selection_rate frames
 
 for filename in os.listdir(folder_path):
     file_path = os.path.join(folder_path, filename)
@@ -77,9 +77,9 @@ x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2,
 
 # Hyperparameter search
 param_grid = {
-    'num_heads': [3],
+    'num_heads': [4],
     'learning_rate': [0.001],
-    "num_layers": [1]
+    "num_layers": [1, 3]
     # 'reg_strength': [0.001, 0.01, 0.1],
 }
 
@@ -101,7 +101,7 @@ for params in ParameterGrid(param_grid):
     model.optimizer.learning_rate.assign(params['learning_rate'])
     model_path = 'models/model_' + 'lr='+str(params["learning_rate"])+'heads='+str(params["num_heads"])+'layers='+str(params["num_layers"]) + '.h5'
     # Fit the model to the data
-    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50,
+    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=150,
                         callbacks=[ModelCheckpoint(model_path, monitor='val_acc', verbose=1,
                                                    save_best_only=True, mode='auto'),
                                    ReduceLROnPlateau(monitor='val_acc', factor=0.5, patience=50, verbose=1,
@@ -174,7 +174,7 @@ for i, matrix in enumerate(confusion_matrices):
     params_dict = param_grid
     plt.xlabel("Predicted")
     plt.ylabel("True")
-    plt.title("Confusion Matrix for Hyperparameters: " + str(params))
+    plt.title("Confusion Matrix for Hyperparameters: " + str(params_dict))
     plt.savefig(os.path.join("figures", "confusion_" + 'lr='+str(params_dict["learning_rate"])+'heads='+str(params_dict["num_heads"])+'layers='+str(params_dict["num_layers"]) + ".png"))
     plt.close()
 
