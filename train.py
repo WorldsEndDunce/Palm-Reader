@@ -15,21 +15,20 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 actions_dict = {"D0X": 0, "B0A": 1, "B0B": 2, "G01": 3, "G02": 4, "G03": 5, "G04": 6, "G05": 7, "G06": 8, "G07": 9, "G08": 10, "G09": 11, "G10": 12, "G11": 13}
 
-
 # List of possible gestures
 actions = [ # ids 1-14, respectively
     "Non-gesture",
-    "Pointing with one finger",
-    "Pointing with two fingers",
-    "Click with one finger",
-    "Click with two fingers",
+    "Point w/ one finger",
+    "Point w/ two fingers",
+    "Click w/ one finger",
+    "Click w/ two fingers",
     "Throw up",
     "Throw down",
     "Throw left",
     "Throw right",
     "Open twice",
-    "Double click with one finger",
-    "Double click with two fingers",
+    "2x click w/ one finger",
+    "2x click w/ two fingers",
     "Zoom in",
     "Zoom out"
 ]
@@ -88,8 +87,9 @@ x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2,
 
 # Define the hyperparameters to search
 param_grid = {
-    'num_heads': [3, 4],
+    'num_heads': [3],
     'learning_rate': [0.001],
+    "num_layers": [1, 4]
     # 'reg_strength': [0.001, 0.01, 0.1],
     # Add other hyperparameters to search
 }
@@ -104,15 +104,15 @@ for params in ParameterGrid(param_grid):
     print("Training model with hyperparameters:", params)
 
     # Create a new instance of the model
-    model = init_model(x_train, actions, "Transformer", params["num_heads"])
+    model = init_model(x_train, actions, "Transformer", params["num_heads"], params["num_layers"])
 
     # Compile and update learning rate
     model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['acc'])
 
     model.optimizer.learning_rate.assign(params['learning_rate'])
-    model_path = 'models/model_' + 'lr='+str(params["learning_rate"])+'heads='+str(params["num_heads"])+'.h5'
+    model_path = 'models/model_' + 'lr='+str(params["learning_rate"])+'heads='+str(params["num_heads"])+'layers='+str(params["num_layers"]) + '.h5'
     # Fit the model to the data
-    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50,
+    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=150,
                         callbacks=[ModelCheckpoint(model_path, monitor='val_acc', verbose=1,
                                                    save_best_only=True, mode='auto'),
                                    ReduceLROnPlateau(monitor='val_acc', factor=0.5, patience=50, verbose=1,
@@ -164,6 +164,6 @@ for i, matrix in enumerate(confusion_matrices):
     plt.title("Confusion Matrix for Hyperparameters: " + str(list(ParameterGrid(param_grid))[i]))
     plt.show()
 
-# TODO: Add other plots? Looking at you, Dishwison
+# TODO: Add other plots?
 
 
