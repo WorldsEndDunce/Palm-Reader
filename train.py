@@ -32,7 +32,6 @@ actions = [ # ids 1-14, respectively
     "Zoom in",
     "Zoom out"
 ]
-print(len(actions))
 
 # Create data from pre-processed examples (not in this repo b/c too large)
 folder_path = "dataset"
@@ -40,56 +39,34 @@ examples = []
 action_indices = []
 index = 0
 for filename in os.listdir(folder_path):
-
     file_path = os.path.join(folder_path, filename)
     if filename.endswith(".npy"):
         split_file = filename.split("_")
         name = split_file[1]
-        #print(actions_dict[name])
         cur = np.load(file_path)
         if not cur.all():
-            #print(cur.shape)
             if cur.ndim == 3:
                 examples.append(cur)
                 index += cur.shape[0]
                 for _ in range(cur.shape[0]):
                     action_indices.append(actions_dict[name])
 
-# print(action_indices)
 data = np.concatenate(examples, axis=0)
-
-# print(data.shape)
-# print(index)
 
 x_data = data[:, :, :-1]
 labels = data[:, 0, -1]
 
-# print(x_data.shape)
-# print(labels.shape)
-# print(np.max(labels))
-# print(np.unique(labels))
-# print(len(action_indices))
-
 y_data = to_categorical(action_indices, num_classes=(len(actions)))
-# print(y_data.shape)
 
 x_data = x_data.astype(np.float32)
 y_data = y_data.astype(np.float32)
 
-# split data into training and testing
 x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=420)
 
-# # initialize model
-# model = init_model(x_train, actions, "Transformer")
-#
-# model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['acc'])
-# model.summary()
-
-# Define the hyperparameters to search
 param_grid = {
     'num_heads': [3],
     'learning_rate': [0.001],
-    "num_layers": [1, 4]
+    "num_layers": [2]
     # 'reg_strength': [0.001, 0.01, 0.1],
     # Add other hyperparameters to search
 }
@@ -130,11 +107,7 @@ for params in ParameterGrid(param_grid):
     confusion_matrix_val = confusion_matrix(y_true, y_pred)
     confusion_matrices.append(confusion_matrix_val)
 
-    # Print the confusion matrix
-    print("Confusion Matrix:")
-    print(confusion_matrix_val)
-
-# Print the training hi story for each hyperparameter combination
+# Print the training history for each hyperparameter combination
 for params, history in history_dict.items():
     print("Training history for hyperparameters:", params)
     print(history)

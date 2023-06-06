@@ -2,7 +2,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, LSTM, Bidirectional
 from tensorflow.keras.layers import MultiHeadAttention, LayerNormalization, Dropout
-def init_model(x_train, actions, model_type, nhead):
+def init_model(x_train, actions, model_type, num_heads, num_layers):
     model = None
     if model_type =="LSTM":
         model = Sequential([
@@ -11,24 +11,29 @@ def init_model(x_train, actions, model_type, nhead):
             Dense(len(actions), activation='softmax')
         ])
     elif model_type == "Transformer":
-        # Define the model
-        inputs = Input(shape=x_train.shape[1:3])
-        transformer = TransformerLayer(units=64, d_model=x_train.shape[-1], num_heads=nhead, dropout=0.1)(inputs)
-        lstm = Bidirectional(LSTM(64, activation='relu'))(transformer)
+        model = TransformerModel(units=64, d_model=x_train.shape[-1], num_heads=num_heads, num_layers=num_layers,
+                                 dropout=0.1)
+        lstm = Bidirectional(LSTM(64, activation='relu'))(model.output)
         dense1 = Dense(32, activation='relu')(lstm)
         outputs = Dense(len(actions), activation='softmax')(dense1)
-        model = Model(inputs=inputs, outputs=outputs)
+        model = Model(inputs=model.input, outputs=outputs)
     return model
-def TransformerLayer(units, d_model, num_heads, dropout):
+def TransformerModel(units, d_model, num_heads, num_layers, dropout):
     inputs = Input(shape=(None, d_model))
-    attention = MultiHeadAttention(num_heads=num_heads, key_dim=d_model)(inputs, inputs)
-    attention = Dropout(dropout)(attention)
-    attention = LayerNormalization(epsilon=1e-6)(inputs + attention)
+    x = inputs
 
-    outputs = Dense(units, activation='relu')(attention)
-    outputs = Dense(d_model)(outputs)
-    outputs = Dropout(dropout)(outputs)
-    outputs = LayerNormalization(epsilon=1e-6)(attention + outputs)
+    for _ in range(num_layers):
+        attention = MultiHeadAttention(num_heads=num_heads, key_dim=d_model)(x, x)
+        attention = Dropout(dropout)(attention)
+        attention = LayerNormalization(epsilon=1e-6)(x + attention)
 
-    return Model(inputs=inputs, outputs=outputs)
+        outputs = Dense(units, activation='relu')(attention)
+        outputs = Dense(d_model)(outputs)
+        outputs = Dropout(dropout)(outputs)
+        outputs = LayerNormalization(epsilon=1e-6)(attention + outputs)
+
+        x = outputs
+
+    model = Model(inputs=inputs, outputs=outputs)
+    return model
 
