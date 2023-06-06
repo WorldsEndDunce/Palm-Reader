@@ -139,9 +139,8 @@ for i in range(len(videos)):
                     data.append(d)
 
                     mp_drawing.draw_landmarks(img, res, mp_hands.HAND_CONNECTIONS)
-            #
+
             cv2.imshow('img', img)
-            #print(frame)
             frame += 1
             if cv2.waitKey(1) == ord('q'):
                 break

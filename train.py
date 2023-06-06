@@ -6,6 +6,9 @@ from sklearn.model_selection import train_test_split, GridSearchCV, ParameterGri
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
+import ast
+from torch._dynamo.symbolic_convert import explain
+from tf_explain.core.smoothgrad import SmoothGrad
 
 from models import init_model
 
@@ -34,10 +37,13 @@ actions = [ # ids 1-14, respectively
 ]
 
 # Create data from pre-processed examples (not in this repo b/c too large)
+print("Loading in data, please wait...")
 folder_path = "dataset"
 examples = []
 action_indices = []
 index = 0
+frame_selection_rate = 5 # Select 1 frame every frame_selection_rate frames
+
 for filename in os.listdir(folder_path):
     file_path = os.path.join(folder_path, filename)
     if filename.endswith(".npy"):
@@ -46,6 +52,12 @@ for filename in os.listdir(folder_path):
         cur = np.load(file_path)
         if not cur.all():
             if cur.ndim == 3:
+                # Calculate the indices for the middle 50% frames
+                num_frames = cur.shape[0]
+                start_index = num_frames // 4  # Start from the 25th percentile
+                end_index = num_frames - num_frames // 4  # End at the 75th percentile
+                # Apply frame selection to the middle 50% frames
+                cur = np.concatenate([cur[:start_index], cur[start_index:end_index:frame_selection_rate], cur[end_index:]], axis=0)
                 examples.append(cur)
                 index += cur.shape[0]
                 for _ in range(cur.shape[0]):
@@ -63,12 +75,12 @@ y_data = y_data.astype(np.float32)
 
 x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=420)
 
+# Hyperparameter search
 param_grid = {
     'num_heads': [3],
     'learning_rate': [0.001],
-    "num_layers": [2]
+    "num_layers": [1]
     # 'reg_strength': [0.001, 0.01, 0.1],
-    # Add other hyperparameters to search
 }
 
 # Initialize a dictionary to store training history
@@ -89,7 +101,7 @@ for params in ParameterGrid(param_grid):
     model.optimizer.learning_rate.assign(params['learning_rate'])
     model_path = 'models/model_' + 'lr='+str(params["learning_rate"])+'heads='+str(params["num_heads"])+'layers='+str(params["num_layers"]) + '.h5'
     # Fit the model to the data
-    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=150,
+    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50,
                         callbacks=[ModelCheckpoint(model_path, monitor='val_acc', verbose=1,
                                                    save_best_only=True, mode='auto'),
                                    ReduceLROnPlateau(monitor='val_acc', factor=0.5, patience=50, verbose=1,
@@ -107,6 +119,32 @@ for params in ParameterGrid(param_grid):
     confusion_matrix_val = confusion_matrix(y_true, y_pred)
     confusion_matrices.append(confusion_matrix_val)
 
+    # Generate and save saliency maps (broken)
+    # images_subset = x_val[:10]  # Adjust the number of images to generate saliency maps for
+    # explainer = SmoothGrad()
+    # explainer_args = {
+    #     "num_samples": 50,
+    #     "noise": 0.20
+    # }
+    #
+    # for i, image in enumerate(images_subset):
+    #     image = image[:, :, np.newaxis]  # Reshape image to (height, width, channels=1)
+    #     class_index = np.argmax(model.predict(image[np.newaxis, ...]))  # Get predicted class index
+    #     saliency = explainer.explain(validation_data=(image[np.newaxis, ...], None), model=model, class_index=class_index, **explainer_args)
+    #
+    #     # Plot and save the saliency maps
+    #     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    #     axes[0].imshow(image.squeeze(), cmap='gray')
+    #     axes[0].set_title("Original Image")
+    #     axes[0].axis("off")
+    #
+    #     axes[1].imshow(saliency.squeeze(), cmap='jet')
+    #     axes[1].set_title("Saliency Map")
+    #     axes[1].axis("off")
+    #
+    #     plt.savefig(f"saliency_map_{i}.png")
+    #     plt.close()
+
 # Print the training history for each hyperparameter combination
 for params, history in history_dict.items():
     print("Training history for hyperparameters:", params)
@@ -114,7 +152,6 @@ for params, history in history_dict.items():
     # plot training loss and accuracy
     fig, loss_ax = plt.subplots(figsize=(16, 10))
     acc_ax = loss_ax.twinx()
-
     loss_ax.plot(history['loss'], 'y', label='train loss')
     loss_ax.plot(history['val_loss'], 'r', label='val loss')
     loss_ax.set_xlabel('epoch')
@@ -125,17 +162,21 @@ for params, history in history_dict.items():
     acc_ax.plot(history['val_acc'], 'g', label='val acc')
     acc_ax.set_ylabel('accuracy')
     acc_ax.legend(loc='lower left')
-
-    plt.show()
+    params_dict = ast.literal_eval(params)
+    plt.savefig(os.path.join("figures", "loss_acc_" + 'lr='+str(params_dict["learning_rate"])+'heads='+str(params_dict["num_heads"])+'layers='+str(params_dict["num_layers"]) + ".png"))
+    plt.close()
 
 # Plot the confusion matrix
 for i, matrix in enumerate(confusion_matrices):
     plt.figure(figsize=(12, 8))
     sns.heatmap(matrix, annot=True, fmt="d", xticklabels=actions, yticklabels=actions)
+    params = list(ParameterGrid(param_grid)[i])
+    params_dict = param_grid
     plt.xlabel("Predicted")
     plt.ylabel("True")
-    plt.title("Confusion Matrix for Hyperparameters: " + str(list(ParameterGrid(param_grid))[i]))
-    plt.show()
+    plt.title("Confusion Matrix for Hyperparameters: " + str(params))
+    plt.savefig(os.path.join("figures", "confusion_" + 'lr='+str(params_dict["learning_rate"])+'heads='+str(params_dict["num_heads"])+'layers='+str(params_dict["num_layers"]) + ".png"))
+    plt.close()
 
 # TODO: Add other plots?
 
