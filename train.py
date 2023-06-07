@@ -68,7 +68,7 @@ data = np.concatenate(examples, axis=0)
 x_data = data[:, :, :-1]
 labels = data[:, 0, -1]
 
-y_data = to_categorical(action_indices, num_classes=(len(actions)))
+y_data = to_categorical(action_indices, num_classes=(len(actions)))`
 
 x_data = x_data.astype(np.float32)
 y_data = y_data.astype(np.float32)

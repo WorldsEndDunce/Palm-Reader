@@ -7,17 +7,36 @@ import datetime
 videos = []
 actions = []
 labels = {}
+
+actions_dict = {"D0X": 0, "B0A": 1, "B0B": 2, "G01": 3, "G02": 4, "G03": 5, "G04": 6, "G05": 7, "G06": 8, "G07": 9, "G08": 10, "G09": 11, "G10": 12, "G11": 13}
+
+action_names = [ # ids 1-14, respectively
+    "Non-gesture",
+    "Point w/ one finger",
+    "Point w/ two fingers",
+    "Click w/ one finger",
+    "Click w/ two fingers",
+    "Throw up",
+    "Throw down",
+    "Throw left",
+    "Throw right",
+    "Open twice",
+    "2x click w/ one finger",
+    "2x click w/ two fingers",
+    "Zoom in",
+    "Zoom out"
+]
+
 labels_order = []
 min_len = 99999
 # open labels file and parse for information about videos
-with open('gestures/labels/Annot_TrainList.txt', mode='r') as f:
+with open('C:/Users/allis/OneDrive/Desktop/gestures/labels/Annot_TrainList.txt', mode='r') as f:
     lines = f.readlines()
     index = 0
     prev_file = ""
     curr_list = []
     curr_file = "not prev"
     file_index = -1
-
 
     for line in lines:
         data = [item.strip() for item in line.split(',')]
@@ -61,7 +80,7 @@ os.makedirs('dataset', exist_ok=True)
 for i in range(len(videos)):
     # get current video
     name = videos[i]
-    video = "gestures/videos/" + name + ".avi"
+    video = "C:/Users/allis/OneDrive/Desktop/gestures/videos/" + name + ".avi"
     print(video)
 
     # get labels for current video
@@ -97,6 +116,7 @@ for i in range(len(videos)):
         data = []
         curr_file, gesture_name, beginning, end, vid_len = params
         frame = 0
+        print(action_names[actions_dict[gesture_name]])
         while frame < vid_len:
             ret, img = cap.read()
             if not ret:
@@ -146,16 +166,16 @@ for i in range(len(videos)):
                 break
 
         # save processed data
-        data = np.array(data)
-        np.save(os.path.join('dataset', f'raw_{gesture_name}_{curr_file}_{created_time}'), data)
-
-        full_seq_data = []
-        print(data.shape)
-
-        for seq in range(len(data) - seq_length):
-            curr = data[seq:seq+seq_length]
-            print(data[seq:seq+seq_length].shape)
-            full_seq_data.append(data[seq:seq + seq_length])
-
-        full_seq_data = np.array(full_seq_data)
-        np.save(os.path.join('dataset', f'seq_{gesture_name}_{curr_file}_{created_time}'), full_seq_data)
+        # data = np.array(data)
+        # np.save(os.path.join('dataset', f'raw_{gesture_name}_{curr_file}_{created_time}'), data)
+        #
+        # full_seq_data = []
+        # print(data.shape)
+        #
+        # for seq in range(len(data) - seq_length):
+        #     curr = data[seq:seq+seq_length]
+        #     print(data[seq:seq+seq_length].shape)
+        #     full_seq_data.append(data[seq:seq + seq_length])
+        #
+        # full_seq_data = np.array(full_seq_data)
+        # np.save(os.path.join('dataset', f'seq_{gesture_name}_{curr_file}_{created_time}'), full_seq_data)
