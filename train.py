@@ -78,7 +78,7 @@ x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2,
 param_grid = {
     'num_heads': [4],
     'learning_rate': [0.001],
-    "num_layers": [1]
+    "num_layers": [1, 2]
     # 'reg_strength': [0.001, 0.01, 0.1],
 }
 
@@ -120,8 +120,8 @@ for params in ParameterGrid(param_grid):
     confusion_matrix_val = confusion_matrix(y_true, y_pred)
     confusion_matrices.append(confusion_matrix_val)
 
-    y_true_all.extend(y_true)
-    y_pred_all.extend(model.predict(x_val))
+    y_true_all.append(y_true)
+    y_pred_all.append(model.predict(x_val))
 
     # Generate and save saliency maps (broken)
     # images_subset = x_val[:10]  # Adjust the number of images to generate saliency maps for
@@ -150,8 +150,9 @@ for params in ParameterGrid(param_grid):
 y_true_all = np.array(y_true_all)
 y_pred_all = np.array(y_pred_all)
 
+# Plotting shenanigans
 # Print the training history for each hyperparameter combination
-for params, history in history_dict.items():
+for i, (params, history) in enumerate(history_dict.items()):
     print("Training history for hyperparameters:", params)
     print(history)
     # plot training loss and accuracy
@@ -168,34 +169,41 @@ for params, history in history_dict.items():
     acc_ax.set_ylabel('accuracy')
     acc_ax.legend(loc='lower left')
     params_dict = ast.literal_eval(params)
-    plt.savefig(os.path.join("figures", "loss_acc_" + 'lr='+str(params_dict["learning_rate"])+'heads='+str(params_dict["num_heads"])+'layers='+str(params_dict["num_layers"]) + ".png"))
+    file_name = 'loss_acc_' + 'lr=' + str(params_dict["learning_rate"]) + 'heads=' + str(
+        params_dict["num_heads"]) + 'layers=' + str(params_dict["num_layers"]) + ".png"
+    plt.savefig(os.path.join("figures", file_name))
     plt.close()
 
-# Plot the confusion matrix
-for i, matrix in enumerate(confusion_matrices):
+    # Plot the confusion matrix
+    confusion_matrix = confusion_matrices[i]
     plt.figure(figsize=(12, 8))
-    sns.heatmap(matrix, annot=True, fmt="d", xticklabels=actions, yticklabels=actions)
-    params = list(ParameterGrid(param_grid)[i])
-    params_dict = param_grid
+    sns.heatmap(confusion_matrix, annot=True, fmt="d", xticklabels=actions, yticklabels=actions)
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.title("Confusion Matrix for Hyperparameters: " + str(params_dict))
-    plt.savefig(os.path.join("figures", "confusion_" + 'lr='+str(params_dict["learning_rate"])+'heads='+str(params_dict["num_heads"])+'layers='+str(params_dict["num_layers"]) + ".png")) # Not exactly the right naming
+    file_name = 'confusion_' + 'lr=' + str(params_dict["learning_rate"]) + 'heads=' + str(
+        params_dict["num_heads"]) + 'layers=' + str(params_dict["num_layers"]) + ".png"
+    plt.savefig(os.path.join("figures", file_name))
     plt.close()
 
-#Iterate over each class and plot the ROC curve
-plt.figure(figsize=(8, 6))
-for i in range(len(actions)):
-    fpr, tpr, _ = roc_curve((y_true_all == i).astype(int), y_pred_all[:, i])
-    roc_auc = auc(fpr, tpr)
-    plt.plot(fpr, tpr, label=actions[i] + f" (AUC = {roc_auc:.2f})")
+    # Iterate over each class and plot the ROC curve
+    plt.figure(figsize=(8, 6))
+    for j in range(len(actions)):
+        fpr, tpr, _ = roc_curve((y_true_all[i] == j).astype(int), y_pred_all[i][:, j])
+        roc_auc = auc(fpr, tpr)
+        label = actions[j] + f" (AUC = {roc_auc:.2f})"
+        plt.plot(fpr, tpr, label=label)
 
-plt.plot([0, 1], [0, 1], linestyle='--', color='r', label='Random')
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Multi-Class ROC Curve')
-plt.legend()
-plt.show()
+    plt.plot([0, 1], [0, 1], linestyle='--', color='r', label='Random')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Multi-Class ROC Curve')
+    roc_file_name = 'roc_' + 'lr=' + str(params_dict["learning_rate"]) + 'heads=' + str(
+        params_dict["num_heads"]) + 'layers=' + str(params_dict["num_layers"]) + ".png"
+    plt.legend()
+    plt.savefig(os.path.join("figures", roc_file_name))
+    plt.close()
+
 
 
 
