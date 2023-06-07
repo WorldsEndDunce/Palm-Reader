@@ -1,14 +1,12 @@
 import numpy as np
 import os
-import matplotlib.pyplot as plt
+
 from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split, GridSearchCV, ParameterGrid
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
-import seaborn as sns
-from sklearn.metrics import confusion_matrix, roc_curve, auc
-import ast
+from sklearn.metrics import confusion_matrix
 
-
+from generate_graphs import graph
 from models import init_model
 
 # Enable GPU
@@ -78,8 +76,7 @@ x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2,
 param_grid = {
     'num_heads': [4],
     'learning_rate': [0.001],
-    "num_layers": [1, 2]
-    # 'reg_strength': [0.001, 0.01, 0.1],
+    "num_layers": [1]
 }
 
 # Initialize a dictionary to store training history
@@ -123,86 +120,8 @@ for params in ParameterGrid(param_grid):
     y_true_all.append(y_true)
     y_pred_all.append(model.predict(x_val))
 
-    # Generate and save saliency maps (broken)
-    # images_subset = x_val[:10]  # Adjust the number of images to generate saliency maps for
-    # explainer = SmoothGrad()
-    # explainer_args = {
-    #     "num_samples": 50,
-    #     "noise": 0.20
-    # }
-    #
-    # for i, image in enumerate(images_subset):
-    #     image = image[:, :, np.newaxis]  # Reshape image to (height, width, channels=1)
-    #     class_index = np.argmax(model.predict(image[np.newaxis, ...]))  # Get predicted class index
-    #     saliency = explainer.explain(validation_data=(image[np.newaxis, ...], None), model=model, class_index=class_index, **explainer_args)
-    #     # Plot and save the saliency maps
-    #     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    #     axes[0].imshow(image.squeeze(), cmap='gray')
-    #     axes[0].set_title("Original Image")
-    #     axes[0].axis("off")
-    #
-    #     axes[1].imshow(saliency.squeeze(), cmap='jet')
-    #     axes[1].set_title("Saliency Map")
-    #     axes[1].axis("off")
-    #
-    #     plt.savefig(f"saliency_map_{i}.png")
-    #     plt.close()
-y_true_all = np.array(y_true_all)
-y_pred_all = np.array(y_pred_all)
-
-# Plotting shenanigans
-# Print the training history for each hyperparameter combination
-for i, (params, history) in enumerate(history_dict.items()):
-    print("Training history for hyperparameters:", params)
-    print(history)
-    # plot training loss and accuracy
-    fig, loss_ax = plt.subplots(figsize=(16, 10))
-    acc_ax = loss_ax.twinx()
-    loss_ax.plot(history['loss'], 'y', label='train loss')
-    loss_ax.plot(history['val_loss'], 'r', label='val loss')
-    loss_ax.set_xlabel('epoch')
-    loss_ax.set_ylabel('loss')
-    loss_ax.legend(loc='upper left')
-
-    acc_ax.plot(history['acc'], 'b', label='train acc')
-    acc_ax.plot(history['val_acc'], 'g', label='val acc')
-    acc_ax.set_ylabel('accuracy')
-    acc_ax.legend(loc='lower left')
-    params_dict = ast.literal_eval(params)
-    file_name = 'loss_acc_' + 'lr=' + str(params_dict["learning_rate"]) + 'heads=' + str(
-        params_dict["num_heads"]) + 'layers=' + str(params_dict["num_layers"]) + ".png"
-    plt.savefig(os.path.join("figures", file_name))
-    plt.close()
-
-    # Plot the confusion matrix
-    confusion_matrix = confusion_matrices[i]
-    plt.figure(figsize=(12, 8))
-    sns.heatmap(confusion_matrix, annot=True, fmt="d", xticklabels=actions, yticklabels=actions)
-    plt.xlabel("Predicted")
-    plt.ylabel("True")
-    plt.title("Confusion Matrix for Hyperparameters: " + str(params_dict))
-    file_name = 'confusion_' + 'lr=' + str(params_dict["learning_rate"]) + 'heads=' + str(
-        params_dict["num_heads"]) + 'layers=' + str(params_dict["num_layers"]) + ".png"
-    plt.savefig(os.path.join("figures", file_name))
-    plt.close()
-
-    # Iterate over each class and plot the ROC curve
-    plt.figure(figsize=(8, 6))
-    for j in range(len(actions)):
-        fpr, tpr, _ = roc_curve((y_true_all[i] == j).astype(int), y_pred_all[i][:, j])
-        roc_auc = auc(fpr, tpr)
-        label = actions[j] + f" (AUC = {roc_auc:.2f})"
-        plt.plot(fpr, tpr, label=label)
-
-    plt.plot([0, 1], [0, 1], linestyle='--', color='r', label='Random')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Multi-Class ROC Curve')
-    roc_file_name = 'roc_' + 'lr=' + str(params_dict["learning_rate"]) + 'heads=' + str(
-        params_dict["num_heads"]) + 'layers=' + str(params_dict["num_layers"]) + ".png"
-    plt.legend()
-    plt.savefig(os.path.join("figures", roc_file_name))
-    plt.close()
+# Plot and save performance graphs
+graph(actions, history_dict, confusion_matrices, y_pred_all, y_true_all)
 
 
 
