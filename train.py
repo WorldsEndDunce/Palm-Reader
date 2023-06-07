@@ -5,10 +5,9 @@ from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split, GridSearchCV, ParameterGrid
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 import seaborn as sns
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, roc_curve, auc
 import ast
-from torch._dynamo.symbolic_convert import explain
-from tf_explain.core.smoothgrad import SmoothGrad
+
 
 from models import init_model
 
@@ -42,7 +41,7 @@ folder_path = "dataset"
 examples = []
 action_indices = []
 index = 0
-frame_selection_rate = 3 # Select 1 frame every frame_selection_rate frames
+frame_selection_rate = 10 # Select 1 frame every frame_selection_rate frames
 
 for filename in os.listdir(folder_path):
     file_path = os.path.join(folder_path, filename)
@@ -54,8 +53,8 @@ for filename in os.listdir(folder_path):
             if cur.ndim == 3:
                 # Calculate the indices for the middle 50% frames
                 num_frames = cur.shape[0]
-                start_index = num_frames // 4  # Start from the 25th percentile
-                end_index = num_frames - num_frames // 4  # End at the 75th percentile
+                start_index = num_frames // 4  # Start from the quarter mark
+                end_index = num_frames - num_frames // 4  # End at the three quarters mark
                 # Apply frame selection to the middle 50% frames
                 cur = np.concatenate([cur[:start_index], cur[start_index:end_index:frame_selection_rate], cur[end_index:]], axis=0)
                 examples.append(cur)
@@ -68,7 +67,7 @@ data = np.concatenate(examples, axis=0)
 x_data = data[:, :, :-1]
 labels = data[:, 0, -1]
 
-y_data = to_categorical(action_indices, num_classes=(len(actions)))`
+y_data = to_categorical(action_indices, num_classes=(len(actions)))
 
 x_data = x_data.astype(np.float32)
 y_data = y_data.astype(np.float32)
@@ -79,7 +78,7 @@ x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2,
 param_grid = {
     'num_heads': [4],
     'learning_rate': [0.001],
-    "num_layers": [1, 3]
+    "num_layers": [1]
     # 'reg_strength': [0.001, 0.01, 0.1],
 }
 
@@ -87,6 +86,9 @@ param_grid = {
 history_dict = {}
 # Initialize a list to store confusion matrices
 confusion_matrices = []
+# For ROC calculation
+y_true_all = []
+y_pred_all = []
 
 # Iterate over each hyperparameter combination and fit the model
 for params in ParameterGrid(param_grid):
@@ -101,7 +103,7 @@ for params in ParameterGrid(param_grid):
     model.optimizer.learning_rate.assign(params['learning_rate'])
     model_path = 'models/model_' + 'lr='+str(params["learning_rate"])+'heads='+str(params["num_heads"])+'layers='+str(params["num_layers"]) + '.h5'
     # Fit the model to the data
-    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=150,
+    history = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=1,
                         callbacks=[ModelCheckpoint(model_path, monitor='val_acc', verbose=1,
                                                    save_best_only=True, mode='auto'),
                                    ReduceLROnPlateau(monitor='val_acc', factor=0.5, patience=50, verbose=1,
@@ -111,13 +113,15 @@ for params in ParameterGrid(param_grid):
     history_dict[str(params)] = history.history
 
     # Predict labels for the validation set
-    y_pred = model.predict(x_val)
+    y_pred =np.argmax(model.predict(x_val), axis=1)
     y_true = np.argmax(y_val, axis=1)
-    y_pred = np.argmax(y_pred, axis=1)
 
     # Compute and store the confusion matrix
     confusion_matrix_val = confusion_matrix(y_true, y_pred)
     confusion_matrices.append(confusion_matrix_val)
+
+    y_true_all.extend(y_true)
+    y_pred_all.extend(model.predict(x_val))
 
     # Generate and save saliency maps (broken)
     # images_subset = x_val[:10]  # Adjust the number of images to generate saliency maps for
@@ -131,7 +135,6 @@ for params in ParameterGrid(param_grid):
     #     image = image[:, :, np.newaxis]  # Reshape image to (height, width, channels=1)
     #     class_index = np.argmax(model.predict(image[np.newaxis, ...]))  # Get predicted class index
     #     saliency = explainer.explain(validation_data=(image[np.newaxis, ...], None), model=model, class_index=class_index, **explainer_args)
-    #
     #     # Plot and save the saliency maps
     #     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
     #     axes[0].imshow(image.squeeze(), cmap='gray')
@@ -144,6 +147,8 @@ for params in ParameterGrid(param_grid):
     #
     #     plt.savefig(f"saliency_map_{i}.png")
     #     plt.close()
+y_true_all = np.array(y_true_all)
+y_pred_all = np.array(y_pred_all)
 
 # Print the training history for each hyperparameter combination
 for params, history in history_dict.items():
@@ -175,9 +180,22 @@ for i, matrix in enumerate(confusion_matrices):
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.title("Confusion Matrix for Hyperparameters: " + str(params_dict))
-    plt.savefig(os.path.join("figures", "confusion_" + 'lr='+str(params_dict["learning_rate"])+'heads='+str(params_dict["num_heads"])+'layers='+str(params_dict["num_layers"]) + ".png"))
+    plt.savefig(os.path.join("figures", "confusion_" + 'lr='+str(params_dict["learning_rate"])+'heads='+str(params_dict["num_heads"])+'layers='+str(params_dict["num_layers"]) + ".png")) # Not exactly the right naming
     plt.close()
 
-# TODO: Add other plots?
+#Iterate over each class and plot the ROC curve
+plt.figure(figsize=(8, 6))
+for i in range(len(actions)):
+    fpr, tpr, _ = roc_curve((y_true_all == i).astype(int), y_pred_all[:, i])
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, label=actions[i] + f" (AUC = {roc_auc:.2f})")
+
+plt.plot([0, 1], [0, 1], linestyle='--', color='r', label='Random')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Multi-Class ROC Curve')
+plt.legend()
+plt.show()
+
 
 
